@@ -31,6 +31,16 @@ const MODEL_OPTIONS = [
   },
 ];
 
+const CLIENT_LIMITS = {
+  maxAgents: 6,
+  maxAgentNameLength: 80,
+  maxDebatePromptLength: 6000,
+  maxFileSizeBytes: 8 * 1024 * 1024,
+  maxFiles: 20,
+  maxPromptLength: 6000,
+  maxTopicLength: 3000,
+};
+
 const DEFAULT_SYSTEM_PROMPTS = [
   "You are a pragmatic strategist. Focus on tradeoffs, feasibility, and practical next steps.",
   "You are a critical thinker. Challenge weak assumptions, surface risks, and push for evidence-backed claims.",
@@ -71,23 +81,37 @@ function hasAllowedExtension(file, acceptString) {
   return allowedExtensions.some((extension) => normalizedName.endsWith(extension));
 }
 
-function mergeFiles(currentFiles, incomingFiles, acceptString) {
+function mergeFiles(currentFiles, incomingFiles, acceptString, options = {}) {
+  const maxFiles = options.maxFiles ?? CLIENT_LIMITS.maxFiles;
+  const maxFileSizeBytes = options.maxFileSizeBytes ?? CLIENT_LIMITS.maxFileSizeBytes;
   const nextFiles = [...currentFiles];
   const seen = new Set(currentFiles.map(fileId));
   const rejected = [];
 
   for (const file of incomingFiles) {
     if (!hasAllowedExtension(file, acceptString)) {
-      rejected.push(file.name);
+      rejected.push(`${file.name} (unsupported type)`);
+      continue;
+    }
+
+    if (file.size > maxFileSizeBytes) {
+      rejected.push(`${file.name} (larger than ${formatBytes(maxFileSizeBytes)})`);
       continue;
     }
 
     const signature = fileId(file);
 
-    if (!seen.has(signature)) {
-      seen.add(signature);
-      nextFiles.push(file);
+    if (seen.has(signature)) {
+      continue;
     }
+
+    if (nextFiles.length >= maxFiles) {
+      rejected.push(`${file.name} (file limit reached)`);
+      continue;
+    }
+
+    seen.add(signature);
+    nextFiles.push(file);
   }
 
   return {
@@ -100,6 +124,15 @@ function removeFile(files, targetId) {
   return files.filter((file) => fileId(file) !== targetId);
 }
 
+function buildRateLimitMessage(retryAfterSeconds) {
+  if (!retryAfterSeconds || Number.isNaN(Number(retryAfterSeconds))) {
+    return "The app is being rate limited. Please wait a moment and try again.";
+  }
+
+  const seconds = Math.max(1, Number(retryAfterSeconds));
+  return `The app is being rate limited. Please wait about ${seconds} second${seconds === 1 ? "" : "s"} and try again.`;
+}
+
 function getFriendlyErrorMessage(error) {
   const message = error instanceof Error ? error.message : String(error);
 
@@ -110,10 +143,91 @@ function getFriendlyErrorMessage(error) {
   return message;
 }
 
+function checkFileCollection(files, label) {
+  if (files.length > CLIENT_LIMITS.maxFiles) {
+    return `${label} can include at most ${CLIENT_LIMITS.maxFiles} files.`;
+  }
+
+  const oversized = files.find((file) => file.size > CLIENT_LIMITS.maxFileSizeBytes);
+
+  if (oversized) {
+    return `${oversized.name} is larger than ${formatBytes(CLIENT_LIMITS.maxFileSizeBytes)}.`;
+  }
+
+  return null;
+}
+
+function validateDebateBeforeSubmit({ form, agents, topicFiles, debatePromptFiles, agentFiles }) {
+  const trimmedTopic = form.topic.trim();
+  const trimmedDebatePrompt = form.debatePrompt.trim();
+
+  if (!trimmedTopic) {
+    return "Add a debate topic before starting.";
+  }
+
+  if (trimmedTopic.length > CLIENT_LIMITS.maxTopicLength) {
+    return `The debate topic must be ${CLIENT_LIMITS.maxTopicLength} characters or fewer.`;
+  }
+
+  if (!trimmedDebatePrompt) {
+    return "Add a debate prompt before starting.";
+  }
+
+  if (trimmedDebatePrompt.length > CLIENT_LIMITS.maxDebatePromptLength) {
+    return `The debate prompt must be ${CLIENT_LIMITS.maxDebatePromptLength} characters or fewer.`;
+  }
+
+  if (agents.length < 2) {
+    return "At least two agents are required.";
+  }
+
+  if (agents.length > CLIENT_LIMITS.maxAgents) {
+    return `At most ${CLIENT_LIMITS.maxAgents} agents are allowed per debate.`;
+  }
+
+  const topicFileError = checkFileCollection(topicFiles, "Topic uploads");
+
+  if (topicFileError) {
+    return topicFileError;
+  }
+
+  const debatePromptFileError = checkFileCollection(debatePromptFiles, "Debate prompt uploads");
+
+  if (debatePromptFileError) {
+    return debatePromptFileError;
+  }
+
+  for (const agent of agents) {
+    if (!agent.name.trim()) {
+      return "Each agent needs a name.";
+    }
+
+    if (agent.name.trim().length > CLIENT_LIMITS.maxAgentNameLength) {
+      return `Agent names must be ${CLIENT_LIMITS.maxAgentNameLength} characters or fewer.`;
+    }
+
+    if (!agent.systemPrompt.trim()) {
+      return "Each agent needs a system prompt.";
+    }
+
+    if (agent.systemPrompt.trim().length > CLIENT_LIMITS.maxPromptLength) {
+      return `System prompts must be ${CLIENT_LIMITS.maxPromptLength} characters or fewer.`;
+    }
+
+    const agentFileError = checkFileCollection(agentFiles[agent.id] ?? [], `${agent.name} uploads`);
+
+    if (agentFileError) {
+      return agentFileError;
+    }
+  }
+
+  return null;
+}
+
 async function checkBackendAvailability() {
   try {
-    const response = await fetch("/api/health");
-    return response.ok;
+    await fetch("/api/health");
+    return true;
   } catch {
     return false;
   }
@@ -129,9 +243,11 @@ const INITIAL_FORM = {
 };
 
 export {
+  CLIENT_LIMITS,
   DOCUMENT_ACCEPT,
   MODEL_OPTIONS,
   TOPIC_ACCEPT,
+  buildRateLimitMessage,
   createAgent,
   fileId,
   formatBytes,
@@ -139,6 +255,7 @@ export {
   removeFile,
   getFriendlyErrorMessage,
   checkBackendAvailability,
+  validateDebateBeforeSubmit,
   INITIAL_AGENTS,
   INITIAL_FORM,
 };

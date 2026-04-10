@@ -3,13 +3,16 @@ import DebateSetupPanel from "./components/DebateSetupPanel.jsx";
 import HeroSection from "./components/HeroSection.jsx";
 import TranscriptPanel from "./components/TranscriptPanel.jsx";
 import {
+  CLIENT_LIMITS,
   INITIAL_AGENTS,
   INITIAL_FORM,
+  buildRateLimitMessage,
   checkBackendAvailability,
   createAgent,
   getFriendlyErrorMessage,
   mergeFiles,
   removeFile,
+  validateDebateBeforeSubmit,
   DOCUMENT_ACCEPT,
   TOPIC_ACCEPT,
 } from "./utils/debateHelpers.js";
@@ -59,12 +62,18 @@ export default function App() {
   }
 
   function addAgent() {
+    if (agents.length >= CLIENT_LIMITS.maxAgents) {
+      setError(`At most ${CLIENT_LIMITS.maxAgents} agents are allowed per debate.`);
+      return;
+    }
+
     const nextAgent = createAgent(agents.length);
     setAgents((current) => [...current, nextAgent]);
     setAgentFiles((current) => ({
       ...current,
       [nextAgent.id]: [],
     }));
+    setError("");
   }
 
   function removeAgent(id) {
@@ -115,26 +124,24 @@ export default function App() {
     event.preventDefault();
     setError("");
 
-    if (!form.topic.trim()) {
-      setError("Add a debate topic before starting.");
-      return;
-    }
+    const validationError = validateDebateBeforeSubmit({
+      form,
+      agents,
+      topicFiles,
+      debatePromptFiles,
+      agentFiles,
+    });
 
-    if (agents.length < 2) {
-      setError("At least two agents are required.");
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     const trimmedAgents = agents.map((agent) => ({
       ...agent,
-      name: agent.name.trim() || "Unnamed Agent",
+      name: agent.name.trim(),
       systemPrompt: agent.systemPrompt.trim(),
     }));
-
-    if (trimmedAgents.some((agent) => !agent.systemPrompt)) {
-      setError("Each agent needs a system prompt.");
-      return;
-    }
 
     setIsRunning(true);
     setEvents([]);
@@ -174,6 +181,13 @@ export default function App() {
 
       if (!response.ok || !response.body) {
         const payload = await response.json().catch(() => null);
+
+        if (response.status === 429) {
+          throw new Error(
+            payload?.error ?? buildRateLimitMessage(response.headers.get("Retry-After")),
+          );
+        }
+
         throw new Error(payload?.error ?? "Unable to start the debate.");
       }
 

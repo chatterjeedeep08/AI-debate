@@ -1,5 +1,6 @@
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
+const REQUEST_TIMEOUT_MS = 45_000;
 
 function getAnthropicApiKey() {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -20,6 +21,7 @@ export async function createAnthropicMessage(payload) {
       "x-api-key": getAnthropicApiKey(),
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   const data = await response.json().catch(() => null);

@@ -1,5 +1,5 @@
 import AttachmentList from "./AttachmentList.jsx";
-import { DOCUMENT_ACCEPT } from "../utils/debateHelpers.js";
+import { CLIENT_LIMITS, DOCUMENT_ACCEPT } from "../utils/debateHelpers.js";
 
 export default function AgentCard({
   agent,
@@ -18,6 +18,7 @@ export default function AgentCard({
         <input
           className="agent-name-input"
           value={agent.name}
+          maxLength={CLIENT_LIMITS.maxAgentNameLength}
           onChange={(event) => onUpdate(agent.id, "name", event.target.value)}
           disabled={isRunning}
           aria-label={`Agent ${index + 1} name`}
@@ -35,6 +36,7 @@ export default function AgentCard({
 
       <textarea
         rows="6"
+        maxLength={CLIENT_LIMITS.maxPromptLength}
         value={agent.systemPrompt}
         onChange={(event) => onUpdate(agent.id, "systemPrompt", event.target.value)}
         disabled={isRunning}
@@ -51,7 +53,7 @@ export default function AgentCard({
           disabled={isRunning}
         />
         <small className="helper-copy">
-          Allowed: .docx, .md, .doc, .pdf, .rtf, .txt, .odt
+          Allowed: .docx, .md, .doc, .pdf, .rtf, .txt, .odt. Up to {CLIENT_LIMITS.maxFiles} files, {Math.round(CLIENT_LIMITS.maxFileSizeBytes / (1024 * 1024))} MB each.
         </small>
       </label>
 

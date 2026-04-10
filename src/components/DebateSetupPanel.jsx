@@ -1,6 +1,7 @@
 import AgentCard from "./AgentCard.jsx";
 import AttachmentList from "./AttachmentList.jsx";
 import {
+  CLIENT_LIMITS,
   DOCUMENT_ACCEPT,
   MODEL_OPTIONS,
   TOPIC_ACCEPT,
@@ -50,10 +51,14 @@ export default function DebateSetupPanel({
           <span>Debate topic</span>
           <textarea
             rows="3"
+            maxLength={CLIENT_LIMITS.maxTopicLength}
             placeholder="Example: Should a mid-sized SaaS company adopt AI agents for internal support operations in 2026?"
             value={form.topic}
             onChange={(event) => onFormChange("topic", event.target.value)}
           />
+          <small className="helper-copy">
+            Up to {CLIENT_LIMITS.maxTopicLength} characters.
+          </small>
         </label>
 
         <label className="field">
@@ -67,7 +72,7 @@ export default function DebateSetupPanel({
           />
           <small className="helper-copy">
             Allowed: .docx, .md, .doc, .pdf, .rtf, .txt, .odt, .png, .jpg,
-            .jpeg, .webp, .gif
+            .jpeg, .webp, .gif. Up to {CLIENT_LIMITS.maxFiles} files, {Math.round(CLIENT_LIMITS.maxFileSizeBytes / (1024 * 1024))} MB each.
           </small>
         </label>
         <AttachmentList files={topicFiles} onRemove={onRemoveTopicFile} />
@@ -76,10 +81,14 @@ export default function DebateSetupPanel({
           <span>Debate prompt</span>
           <textarea
             rows="4"
+            maxLength={CLIENT_LIMITS.maxDebatePromptLength}
             placeholder="Set the objective, desired tone, constraints, or success criteria for the debate."
             value={form.debatePrompt}
             onChange={(event) => onFormChange("debatePrompt", event.target.value)}
           />
+          <small className="helper-copy">
+            Up to {CLIENT_LIMITS.maxDebatePromptLength} characters.
+          </small>
         </label>
 
         <label className="field">
@@ -92,7 +101,7 @@ export default function DebateSetupPanel({
             disabled={isRunning}
           />
           <small className="helper-copy">
-            Allowed: .docx, .md, .doc, .pdf, .rtf, .txt, .odt
+            Allowed: .docx, .md, .doc, .pdf, .rtf, .txt, .odt. Up to {CLIENT_LIMITS.maxFiles} files, {Math.round(CLIENT_LIMITS.maxFileSizeBytes / (1024 * 1024))} MB each.
           </small>
         </label>
         <AttachmentList files={debatePromptFiles} onRemove={onRemoveDebatePromptFile} />
@@ -117,7 +126,7 @@ export default function DebateSetupPanel({
             type="button"
             className="secondary-button"
             onClick={onAddAgent}
-            disabled={isRunning}
+            disabled={isRunning || agents.length >= CLIENT_LIMITS.maxAgents}
           >
             Add agent
           </button>
