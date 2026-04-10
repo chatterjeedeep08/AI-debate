@@ -32,8 +32,10 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
+  min-width: 0;
 }
 
 button {
@@ -41,8 +43,10 @@ button {
 }
 
 textarea,
-input {
+input,
+select {
   width: 100%;
+  max-width: 100%;
   border: 1px solid rgba(20, 33, 61, 0.16);
   border-radius: 16px;
   padding: 0.95rem 1rem;
@@ -50,8 +54,15 @@ input {
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
+textarea {
+  resize: vertical;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+
 textarea:focus,
-input:focus {
+input:focus,
+select:focus {
   outline: none;
   border-color: rgba(42, 157, 143, 0.9);
   box-shadow: 0 0 0 4px rgba(42, 157, 143, 0.12);
@@ -137,6 +148,7 @@ input:focus {
 
 .panel {
   padding: 1.4rem;
+  min-width: 0;
 }
 
 .panel-heading,
@@ -167,6 +179,7 @@ input:focus {
 
 .field {
   gap: 0.55rem;
+  min-width: 0;
 }
 
 .field span,
@@ -177,8 +190,21 @@ input:focus {
   font-size: 0.92rem;
 }
 
+.helper-copy {
+  color: var(--text-soft);
+  font-size: 0.83rem;
+}
+
 .compact-field {
   max-width: 170px;
+}
+
+.model-picker {
+  min-width: 220px;
+}
+
+.model-select {
+  min-width: 0;
 }
 
 .agents-grid {
@@ -191,6 +217,11 @@ input:focus {
   border-radius: 22px;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.78);
+  min-width: 0;
+}
+
+.agent-file-field {
+  margin-top: 0.9rem;
 }
 
 .agent-name-input {
@@ -256,7 +287,8 @@ input:focus {
 .primary-button:disabled,
 .secondary-button:disabled,
 .ghost-button:disabled,
-.icon-button:disabled {
+.icon-button:disabled,
+.model-select:disabled {
   cursor: not-allowed;
   opacity: 0.5;
   transform: none;
@@ -268,6 +300,53 @@ input:focus {
   border-radius: 16px;
   background: rgba(231, 111, 81, 0.12);
   color: #8f2d17;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.attachment-chip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.9rem;
+  border: 1px solid rgba(20, 33, 61, 0.1);
+  border-radius: 16px;
+  padding: 0.75rem 0.9rem;
+  background: rgba(255, 255, 255, 0.75);
+  min-width: 0;
+}
+
+.attachment-chip strong,
+.attachment-chip span {
+  display: block;
+}
+
+.attachment-chip > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.attachment-chip strong {
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-chip span {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+.attachment-chip button {
+  border: none;
+  background: rgba(20, 33, 61, 0.08);
+  color: #14213d;
+  border-radius: 999px;
+  padding: 0.5rem 0.8rem;
 }
 
 .transcript-stream {
@@ -374,8 +453,10 @@ input:focus {
     align-items: flex-start;
   }
 
-  .compact-field {
+  .compact-field,
+  .model-picker {
     max-width: 100%;
+    min-width: 0;
   }
 
   .transcript-stream {

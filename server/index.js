@@ -4,6 +4,13 @@ import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import { runDebate } from "./debateOrchestrator.js";
+import {
+  formatUploadError,
+  hydrateDebatePayload,
+  parseDebatePayload,
+  upload,
+  validateDebatePayload,
+} from "./fileIngestion.js";
 
 dotenv.config();
 
@@ -18,24 +25,42 @@ app.use(express.json({ limit: "1mb" }));
 app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    provider: "gemini",
+    providers: {
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+    },
+    uploads: true,
   });
 });
 
-app.post("/api/debates", async (request, response) => {
-  const { topic, debatePrompt, agents, rounds } = request.body ?? {};
-
-  if (!topic || !debatePrompt || !Array.isArray(agents) || agents.length < 2) {
-    response.status(400).json({
-      error: "Provide a topic, debate prompt, and at least two agents.",
-    });
+function handleDebateUploads(request, response, next) {
+  if (!request.is("multipart/form-data")) {
+    next();
     return;
   }
 
-  if (!Number.isInteger(rounds) || rounds < 1 || rounds > 5) {
+  upload.any()(request, response, (error) => {
+    if (error) {
+      response.status(400).json({
+        error: formatUploadError(error),
+      });
+      return;
+    }
+
+    next();
+  });
+}
+
+app.post("/api/debates", handleDebateUploads, async (request, response) => {
+  let debateInput;
+
+  try {
+    const payload = parseDebatePayload(request);
+    const validatedPayload = validateDebatePayload(payload);
+    debateInput = await hydrateDebatePayload(validatedPayload, request.files ?? []);
+  } catch (error) {
     response.status(400).json({
-      error: "Rounds must be an integer between 1 and 5.",
+      error: error instanceof Error ? error.message : "Invalid debate request.",
     });
     return;
   }
@@ -52,10 +77,7 @@ app.post("/api/debates", async (request, response) => {
 
   try {
     await runDebate({
-      topic,
-      debatePrompt,
-      rounds,
-      agents,
+      ...debateInput,
       emit,
     });
   } catch (error) {
@@ -78,6 +100,19 @@ app.get("*", (request, response, next) => {
   }
 
   next();
+});
+
+app.use((error, _request, response, _next) => {
+  if (error instanceof SyntaxError && "body" in error) {
+    response.status(400).json({
+      error: "Malformed JSON request body.",
+    });
+    return;
+  }
+
+  response.status(500).json({
+    error: "Internal server error.",
+  });
 });
 
 app.listen(port, () => {
